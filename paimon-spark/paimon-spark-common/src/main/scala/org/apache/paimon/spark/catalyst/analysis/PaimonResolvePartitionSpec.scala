@@ -36,31 +36,17 @@ object PaimonResolvePartitionSpec {
   def resolve(
       catalog: TableCatalog,
       tableIndent: Identifier,
-      partitionSpec: PartitionSpec): ResolvedPartitionSpec = {
+      partitionSpec: TablePartitionSpec): ResolvedPartitionSpec = {
     val table = catalog.loadTable(tableIndent).asPartitionable
-    partitionSpec match {
-      case u: UnresolvedPartitionSpec =>
-        val partitionSchema = table.partitionSchema()
-        resolvePartitionSpec(table.name(), u, partitionSchema, allowPartitionSpec = false)
-      case o => o.asInstanceOf[ResolvedPartitionSpec]
-    }
-  }
-
-  private def resolvePartitionSpec(
-      tableName: String,
-      partSpec: UnresolvedPartitionSpec,
-      partSchema: StructType,
-      allowPartitionSpec: Boolean): ResolvedPartitionSpec = {
-    val normalizedSpec = normalizePartitionSpec(partSpec.spec, partSchema, tableName, conf.resolver)
-    if (!allowPartitionSpec) {
-      requireExactMatchedPartitionSpec(tableName, normalizedSpec, partSchema.fieldNames)
-    }
+    val partitionSchema = table.partitionSchema()
+    val normalizedSpec =
+      normalizePartitionSpec(partitionSpec, partitionSchema, table.name(), conf.resolver)
     val partitionNames = normalizedSpec.keySet
-    val requestedFields = partSchema.filter(field => partitionNames.contains(field.name))
+    val requestedFields = partitionSchema.filter(field => partitionNames.contains(field.name))
     ResolvedPartitionSpec(
       requestedFields.map(_.name),
       convertToPartIdent(normalizedSpec, requestedFields),
-      partSpec.location)
+      None)
   }
 
   def convertToPartIdent(

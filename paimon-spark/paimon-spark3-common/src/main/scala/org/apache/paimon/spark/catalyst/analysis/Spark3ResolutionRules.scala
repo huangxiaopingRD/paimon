@@ -22,10 +22,11 @@ import org.apache.paimon.spark.commands.{PaimonShowTablePartitionCommand, Paimon
 
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.SQLConfHelper
-import org.apache.spark.sql.catalyst.analysis.{PartitionSpec, ResolvedNamespace, UnresolvedPartitionSpec}
-import org.apache.spark.sql.catalyst.plans.logical.{LogicalPlan, ShowTableExtended}
+import org.apache.spark.sql.catalyst.analysis.ResolvedNamespace
+import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.connector.catalog.Identifier
+import org.apache.spark.sql.execution.command.ShowTablesCommand
 
 case class Spark3ResolutionRules(session: SparkSession)
   extends Rule[LogicalPlan]
@@ -34,21 +35,18 @@ case class Spark3ResolutionRules(session: SparkSession)
   import org.apache.spark.sql.connector.catalog.PaimonCatalogImplicits._
 
   override def apply(plan: LogicalPlan): LogicalPlan = plan.resolveOperatorsDown {
-    case ShowTableExtended(
+    case ShowTablesCommand(
           ResolvedNamespace(catalog, ns),
-          pattern,
-          partitionSpec @ (None | Some(UnresolvedPartitionSpec(_, _))),
-          output) =>
-      partitionSpec
-        .map {
-          spec: PartitionSpec =>
-            val table = Identifier.of(ns.toArray, pattern)
-            val resolvedSpec =
-              PaimonResolvePartitionSpec.resolve(catalog.asTableCatalog, table, spec)
-            PaimonShowTablePartitionCommand(output, catalog.asTableCatalog, table, resolvedSpec)
-        }
-        .getOrElse {
-          PaimonShowTablesExtendedCommand(catalog.asTableCatalog, ns, pattern, output)
-        }
+          Some(pattern),
+          output,
+          true,
+          Some(tablePartitionSpec)) =>
+      val table = Identifier.of(ns.toArray, pattern)
+      val resolvedSpec =
+        PaimonResolvePartitionSpec.resolve(catalog.asTableCatalog, table, tablePartitionSpec)
+      PaimonShowTablePartitionCommand(output, catalog.asTableCatalog, table, resolvedSpec)
+
+    case ShowTablesCommand(ResolvedNamespace(catalog, ns), Some(pattern), output, true, None) =>
+      PaimonShowTablesExtendedCommand(catalog.asTableCatalog, ns, pattern, output)
   }
 }
