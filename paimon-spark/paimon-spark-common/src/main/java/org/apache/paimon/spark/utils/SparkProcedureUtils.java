@@ -37,7 +37,7 @@ import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nullable;
 
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -83,11 +83,12 @@ public class SparkProcedureUtils {
 
     @Nullable
     public static PartitionPredicate convertPartitionsToPartitionPredicate(
-            @Nullable String partitions, FileStoreTable table) {
+            @Nullable String partitions, FileStoreTable table, SparkSession spark) {
         // `partitions` is a structured partition spec path such as
         // `dt=2024-01-01,hh=0;dt=2024-01-02,hh=1`, not a SQL expression.
-        // We convert it directly with the table's partition type instead of routing it through
-        // Spark SQL parsing, so string-like partition values are treated as typed literals.
+        // Values that are valid Spark SQL literals are normalized with Spark's parser, so quoted
+        // partition values follow Spark partition spec behavior. Values that are not literals are
+        // kept as path-style typed strings for backward compatibility.
         //
         // Invalid partition keys are rejected explicitly here so procedures can fail with a clear
         // error message before converting values to Paimon internal literals.
@@ -104,6 +105,7 @@ public class SparkProcedureUtils {
         List<Map<String, String>> partitionSpecs =
                 ParameterUtils.getPartitions(partitions.split(";"));
         validatePartitionKeys(partitionSpecs, partitionKeys);
+        partitionSpecs = normalizePartitionValuesWithSparkParser(spark, partitionSpecs);
 
         Predicate predicate =
                 PredicateBuilder.partitions(
@@ -127,6 +129,64 @@ public class SparkProcedureUtils {
                 "Partition keys %s are invalid. Available partition keys are %s",
                 invalidKeys,
                 partitionKeys);
+    }
+
+    private static List<Map<String, String>> normalizePartitionValuesWithSparkParser(
+            SparkSession spark, List<Map<String, String>> partitionSpecs) {
+        return partitionSpecs.stream()
+                .map(partitionSpec -> parsePartitionSpec(spark, partitionSpec, false))
+                .collect(java.util.stream.Collectors.toList());
+    }
+
+    /**
+     * Parse static partition spec values by evaluating them as Spark SQL literal expressions. This
+     * keeps overwrite partition handling aligned with Spark SQL partition specs, while rejecting
+     * non-literal or null values.
+     *
+     * @param spark the Spark session
+     * @param partitionSpec the partition spec with raw values (e.g., {"date": "\"20260225\""})
+     * @return the static partition map with parsed literal values (e.g., {"date": "20260225"})
+     */
+    public static Map<String, String> parseStaticPartition(
+            SparkSession spark, Map<String, String> partitionSpec) {
+        return parsePartitionSpec(spark, partitionSpec, true);
+    }
+
+    private static Map<String, String> parsePartitionSpec(
+            SparkSession spark, Map<String, String> partitionSpec, boolean requireLiteral) {
+        Map<String, String> staticPartition = new LinkedHashMap<>();
+        for (Map.Entry<String, String> entry : partitionSpec.entrySet()) {
+            staticPartition.put(
+                    entry.getKey(), parsePartitionValue(spark, entry.getValue(), requireLiteral));
+        }
+        return staticPartition;
+    }
+
+    private static String parsePartitionValue(
+            SparkSession spark, String value, boolean requireLiteral) {
+        Expression expr;
+        try {
+            expr = spark.sessionState().sqlParser().parseExpression(value);
+        } catch (Exception e) {
+            if (requireLiteral) {
+                throw new RuntimeException(e);
+            }
+            return value;
+        }
+        if (!(expr instanceof Literal)) {
+            checkArgument(
+                    !requireLiteral,
+                    "Partition value must be a literal expression, but got: %s",
+                    value);
+            return value;
+        }
+
+        Object literalValue = ((Literal) expr).value();
+        if (literalValue == null) {
+            checkArgument(!requireLiteral, "Partition value cannot be null");
+            return value;
+        }
+        return literalValue.toString();
     }
 
     public static int readParallelism(List<?> groupedTasks, SparkSession spark) {
@@ -162,32 +222,4 @@ public class SparkProcedureUtils {
                 .orElse(null);
     }
 
-    /**
-     * Parse partition spec values by evaluating them as Spark SQL literal expressions. This strips
-     * quotes from string literals and validates that values are non-null literals.
-     *
-     * @param spark the Spark session
-     * @param partitionSpec the partition spec with raw values (e.g., {"date": "\"20260225\""})
-     * @return the static partition map with unquoted literal values (e.g., {"date": "20260225"})
-     */
-    public static Map<String, String> parseStaticPartition(
-            SparkSession spark, Map<String, String> partitionSpec) {
-        Map<String, String> staticPartition = new HashMap<>();
-        for (Map.Entry<String, String> entry : partitionSpec.entrySet()) {
-            Expression expr;
-            try {
-                expr = spark.sessionState().sqlParser().parseExpression(entry.getValue());
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-            checkArgument(
-                    expr instanceof Literal,
-                    "Partition value must be a literal expression, but got: %s",
-                    entry.getValue());
-            Object value = ((Literal) expr).value();
-            checkArgument(value != null, "Partition value cannot be null");
-            staticPartition.put(entry.getKey(), value.toString());
-        }
-        return staticPartition;
-    }
 }

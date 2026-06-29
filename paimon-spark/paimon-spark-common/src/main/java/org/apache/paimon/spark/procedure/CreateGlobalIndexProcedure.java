@@ -160,7 +160,7 @@ public class CreateGlobalIndexProcedure extends BaseProcedure {
                         DataSourceV2Relation relation = createRelation(tableIdent, sparkTable);
                         PartitionPredicate partitionPredicate =
                                 SparkProcedureUtils.convertPartitionsToPartitionPredicate(
-                                        partitions, table);
+                                        partitions, table, spark());
 
                         List<DataField> indexFields =
                                 indexColumns.stream()

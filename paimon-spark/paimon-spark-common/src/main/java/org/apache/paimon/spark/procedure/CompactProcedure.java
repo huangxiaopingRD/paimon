@@ -200,7 +200,7 @@ public class CompactProcedure extends BaseProcedure {
                     if (partitions != null) {
                         partitionPredicate =
                                 SparkProcedureUtils.convertPartitionsToPartitionPredicate(
-                                        partitions, table);
+                                        partitions, table, spark());
                     } else {
                         partitionPredicate =
                                 SparkProcedureUtils.convertToPartitionPredicate(

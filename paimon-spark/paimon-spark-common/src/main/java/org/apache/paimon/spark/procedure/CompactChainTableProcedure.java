@@ -138,7 +138,7 @@ public class CompactChainTableProcedure extends BaseProcedure {
                 (ChainGroupReadTable.ChainTableBatchScan) table.newScan();
         PartitionPredicate partitionPredicate =
                 SparkProcedureUtils.convertPartitionsToPartitionPredicate(
-                        partitionStr, snapshotTable);
+                        partitionStr, snapshotTable, spark());
 
         // Check if target partition already exists in snapshot branch
         boolean partitionExists = checkPartitionExists(snapshotTable, partitionStr);
@@ -188,7 +188,8 @@ public class CompactChainTableProcedure extends BaseProcedure {
 
     private boolean checkPartitionExists(FileStoreTable snapshotTable, String partition) {
         PartitionPredicate snapshotPartitionPredicate =
-                SparkProcedureUtils.convertPartitionsToPartitionPredicate(partition, snapshotTable);
+                SparkProcedureUtils.convertPartitionsToPartitionPredicate(
+                        partition, snapshotTable, spark());
 
         return !snapshotTable
                 .newScan()

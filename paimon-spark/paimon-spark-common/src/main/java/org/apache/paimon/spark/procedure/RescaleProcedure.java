@@ -134,7 +134,7 @@ public class RescaleProcedure extends BaseProcedure {
                     if (partitions != null) {
                         partitionPredicate =
                                 SparkProcedureUtils.convertPartitionsToPartitionPredicate(
-                                        partitions, fileStoreTable);
+                                        partitions, fileStoreTable, spark());
                     } else {
                         partitionPredicate =
                                 SparkProcedureUtils.convertToPartitionPredicate(

@@ -141,7 +141,7 @@ public class DropGlobalIndexProcedure extends BaseProcedure {
                         DataSourceV2Relation relation = createRelation(tableIdent);
                         PartitionPredicate partitionPredicate =
                                 SparkProcedureUtils.convertPartitionsToPartitionPredicate(
-                                        partitions, table);
+                                        partitions, table, spark());
 
                         Snapshot snapshot =
                                 t.latestSnapshot()
