@@ -30,6 +30,7 @@ import org.apache.spark.sql.{Dataset, Row}
 import org.apache.spark.sql.paimon.shims.memstream.MemoryStream
 import org.apache.spark.sql.streaming.StreamTest
 import org.assertj.core.api.Assertions
+import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.scalatest.time.Span
 
 import java.util
@@ -1565,12 +1566,8 @@ abstract class CompactProcedureTestBase extends PaimonSparkTestBase with StreamT
                    |PARTITIONED BY (dt, hh)
                    |""".stripMargin)
 
-      val e = assertThrows[IllegalArgumentException] {
-        spark.sql("CALL sys.compact(table => 'T', partitions => 'pt=2024-01-01')")
-      }
-
-      Assertions
-        .assertThat(e)
+      assertThatThrownBy(() =>
+        spark.sql("CALL sys.compact(table => 'T', partitions => 'pt=2024-01-01')"))
         .hasMessageContaining("Partition keys [pt] are invalid")
         .hasMessageContaining("Available partition keys are [dt, hh]")
     }
