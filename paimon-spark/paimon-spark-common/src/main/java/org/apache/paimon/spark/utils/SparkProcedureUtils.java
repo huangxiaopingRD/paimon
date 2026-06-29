@@ -37,8 +37,8 @@ import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nullable;
 
-import java.util.LinkedHashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -221,5 +221,4 @@ public class SparkProcedureUtils {
                 .reduce((a, b) -> a + " OR " + b)
                 .orElse(null);
     }
-
 }
