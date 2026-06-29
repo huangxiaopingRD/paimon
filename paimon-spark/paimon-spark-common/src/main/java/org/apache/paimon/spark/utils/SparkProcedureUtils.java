@@ -20,7 +20,9 @@ package org.apache.paimon.spark.utils;
 
 import org.apache.paimon.partition.PartitionPredicate;
 import org.apache.paimon.predicate.Predicate;
+import org.apache.paimon.predicate.PredicateBuilder;
 import org.apache.paimon.spark.catalyst.analysis.expressions.ExpressionUtils;
+import org.apache.paimon.table.FileStoreTable;
 import org.apache.paimon.types.RowType;
 import org.apache.paimon.utils.ParameterUtils;
 import org.apache.paimon.utils.StringUtils;
@@ -36,9 +38,11 @@ import org.slf4j.LoggerFactory;
 import javax.annotation.Nullable;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.apache.paimon.utils.Preconditions.checkArgument;
 
@@ -75,6 +79,55 @@ public class SparkProcedureUtils {
                                 condition, ((LogicalPlan) relation).output(), partitionType, false)
                         .get();
         return PartitionPredicate.fromPredicate(partitionType, predicate);
+    }
+
+    @Nullable
+    public static PartitionPredicate convertPartitionsToPartitionPredicate(
+            @Nullable String partitions, FileStoreTable table) {
+        // `partitions` is a structured partition spec path such as
+        // `dt=2024-01-01,hh=0;dt=2024-01-02,hh=1`, not a SQL expression.
+        // We convert it directly with the table's partition type instead of routing it through
+        // Spark SQL parsing, so string-like partition values are treated as typed literals.
+        //
+        // Invalid partition keys are rejected explicitly here so procedures can fail with a clear
+        // error message before converting values to Paimon internal literals.
+        if (StringUtils.isNullOrWhitespaceOnly(partitions)) {
+            return null;
+        }
+
+        RowType partitionType = table.schema().logicalPartitionType();
+        List<String> partitionKeys = partitionType.getFieldNames();
+        checkArgument(
+                !partitionKeys.isEmpty(),
+                "Table should be a partitioned table when using partition predicate.");
+
+        List<Map<String, String>> partitionSpecs = ParameterUtils.getPartitions(partitions.split(";"));
+        validatePartitionKeys(partitionSpecs, partitionKeys);
+
+        Predicate predicate =
+                PredicateBuilder.partitions(
+                        partitionSpecs,
+                        partitionType,
+                        table.coreOptions().partitionDefaultName());
+        return PartitionPredicate.fromPredicate(partitionType, predicate);
+    }
+
+    private static void validatePartitionKeys(
+            List<Map<String, String>> partitionSpecs, List<String> partitionKeys) {
+        Set<String> invalidKeys = new HashSet<>();
+        for (Map<String, String> partitionSpec : partitionSpecs) {
+            for (String partitionKey : partitionSpec.keySet()) {
+                if (!partitionKeys.contains(partitionKey)) {
+                    invalidKeys.add(partitionKey);
+                }
+            }
+        }
+
+        checkArgument(
+                invalidKeys.isEmpty(),
+                "Partition keys %s are invalid. Available partition keys are %s",
+                invalidKeys,
+                partitionKeys);
     }
 
     public static int readParallelism(List<?> groupedTasks, SparkSession spark) {

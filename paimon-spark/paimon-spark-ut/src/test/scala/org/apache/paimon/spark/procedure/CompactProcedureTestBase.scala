@@ -1533,4 +1533,45 @@ abstract class CompactProcedureTestBase extends PaimonSparkTestBase with StreamT
   def lastSnapshotId(table: FileStoreTable): Long = {
     table.snapshotManager().latestSnapshotId()
   }
+
+  test("Paimon Procedure: compact partitions accept unquoted string values") {
+    withTable("T") {
+      spark.sql(s"""
+                   |CREATE TABLE T (id INT, value STRING, dt STRING, hh INT)
+                   |TBLPROPERTIES ('bucket'='-1', 'write-only'='true')
+                   |PARTITIONED BY (dt, hh)
+                   |""".stripMargin)
+
+      val table = loadTable("T")
+
+      spark.sql(s"INSERT INTO T VALUES (1, 'a', '2024-01-01', 0), (2, 'b', '2024-01-01', 0)")
+      spark.sql(s"INSERT INTO T VALUES (3, 'c', '2024-01-02', 0), (4, 'd', '2024-01-02', 0)")
+
+      val before = lastSnapshotId(table)
+      checkAnswer(
+        spark.sql(
+          "CALL sys.compact(table => 'T', partitions => 'dt=2024-01-01,hh=0', options => 'compaction.min.file-num=2')"),
+        Row(true) :: Nil)
+
+      Assertions.assertThat(lastSnapshotId(loadTable("T"))).isGreaterThan(before)
+    }
+  }
+
+  test("Paimon Procedure: compact with invalid partition key") {
+    withTable("T") {
+      spark.sql(s"""
+                   |CREATE TABLE T (id INT, value STRING, dt STRING, hh INT)
+                   |TBLPROPERTIES ('bucket'='-1', 'write-only'='true')
+                   |PARTITIONED BY (dt, hh)
+                   |""".stripMargin)
+
+      val e = assertThrows[IllegalArgumentException] {
+        spark.sql("CALL sys.compact(table => 'T', partitions => 'pt=2024-01-01')")
+      }
+
+      Assertions.assertThat(e)
+        .hasMessageContaining("Partition keys [pt] are invalid")
+        .hasMessageContaining("Available partition keys are [dt, hh]")
+    }
+  }
 }
