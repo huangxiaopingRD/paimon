@@ -117,9 +117,7 @@ public class CreateGlobalIndexProcedure extends BaseProcedure {
         String optionString = args.isNullAt(4) ? null : args.getString(4);
 
         LOG.info(
-                "Starting to build index for table {} with partitions: {}",
-                tableIdent,
-                partitions);
+                "Starting to build index for table {} with partitions: {}", tableIdent, partitions);
 
         return modifySparkTable(
                 tableIdent,

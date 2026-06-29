@@ -101,14 +101,13 @@ public class SparkProcedureUtils {
                 !partitionKeys.isEmpty(),
                 "Table should be a partitioned table when using partition predicate.");
 
-        List<Map<String, String>> partitionSpecs = ParameterUtils.getPartitions(partitions.split(";"));
+        List<Map<String, String>> partitionSpecs =
+                ParameterUtils.getPartitions(partitions.split(";"));
         validatePartitionKeys(partitionSpecs, partitionKeys);
 
         Predicate predicate =
                 PredicateBuilder.partitions(
-                        partitionSpecs,
-                        partitionType,
-                        table.coreOptions().partitionDefaultName());
+                        partitionSpecs, partitionType, table.coreOptions().partitionDefaultName());
         return PartitionPredicate.fromPredicate(partitionType, predicate);
     }
 

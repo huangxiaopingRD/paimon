@@ -1569,7 +1569,8 @@ abstract class CompactProcedureTestBase extends PaimonSparkTestBase with StreamT
         spark.sql("CALL sys.compact(table => 'T', partitions => 'pt=2024-01-01')")
       }
 
-      Assertions.assertThat(e)
+      Assertions
+        .assertThat(e)
         .hasMessageContaining("Partition keys [pt] are invalid")
         .hasMessageContaining("Available partition keys are [dt, hh]")
     }

@@ -137,7 +137,8 @@ public class CompactChainTableProcedure extends BaseProcedure {
         ChainGroupReadTable.ChainTableBatchScan scan =
                 (ChainGroupReadTable.ChainTableBatchScan) table.newScan();
         PartitionPredicate partitionPredicate =
-                SparkProcedureUtils.convertPartitionsToPartitionPredicate(partitionStr, snapshotTable);
+                SparkProcedureUtils.convertPartitionsToPartitionPredicate(
+                        partitionStr, snapshotTable);
 
         // Check if target partition already exists in snapshot branch
         boolean partitionExists = checkPartitionExists(snapshotTable, partitionStr);

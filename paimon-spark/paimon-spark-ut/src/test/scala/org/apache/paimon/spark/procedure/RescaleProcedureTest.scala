@@ -159,7 +159,8 @@ class RescaleProcedureTest extends PaimonSparkTestBase {
 
       spark.sql("ALTER TABLE T SET TBLPROPERTIES ('bucket' = '4')")
       checkAnswer(
-        spark.sql("CALL sys.rescale(table => 'T', bucket_num => 4, partitions => 'dt=2024-01-01,hh=0')"),
+        spark.sql(
+          "CALL sys.rescale(table => 'T', bucket_num => 4, partitions => 'dt=2024-01-01,hh=0')"),
         Row(true) :: Nil)
 
       val reloadedTable = loadTable("T")

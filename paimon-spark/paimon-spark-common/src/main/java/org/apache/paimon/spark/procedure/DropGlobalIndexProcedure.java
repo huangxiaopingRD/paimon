@@ -108,10 +108,7 @@ public class DropGlobalIndexProcedure extends BaseProcedure {
                         : args.getString(3);
         boolean dryRun = !args.isNullAt(4) && args.getBoolean(4);
 
-        LOG.info(
-                "Starting to drop index for table {} with partitions: {}",
-                tableIdent,
-                partitions);
+        LOG.info("Starting to drop index for table {} with partitions: {}", tableIdent, partitions);
 
         List<String> indexColumns =
                 Arrays.stream(column.split(","))
