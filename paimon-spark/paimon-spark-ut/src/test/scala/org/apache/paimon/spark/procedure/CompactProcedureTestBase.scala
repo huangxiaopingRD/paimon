@@ -538,7 +538,7 @@ abstract class CompactProcedureTestBase extends PaimonSparkTestBase with StreamT
 
     assert(intercept[IllegalArgumentException] {
       spark.sql("CALL sys.compact(table => 'T', partitions => 'id = 1')")
-    }.getMessage.contains("Only partition predicate is supported"))
+    }.getMessage.contains("Partition keys [id] are invalid"))
 
     assert(intercept[IllegalArgumentException] {
       spark.sql("CALL sys.compact(table => 'T', where => 'id > 1 AND pt = \"p1\"')")
