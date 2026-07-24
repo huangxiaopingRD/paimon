@@ -34,7 +34,6 @@ public abstract class AbstractWritableVector implements WritableColumnVector, Se
     static final int MAX_ROUNDED_ARRAY_LENGTH = Integer.MAX_VALUE - 15;
     static final int DEFAULT_HUGE_VECTOR_THRESHOLD = 1 << 20;
     static final double DEFAULT_HUGE_VECTOR_RESERVE_RATIO = 1.2;
-    static final int DEFAULT_HUGE_VECTOR_SHRINK_RATIO = 4;
 
     // If the whole column vector has no nulls, this is true, otherwise false.
     protected boolean noNulls = true;
@@ -46,8 +45,6 @@ public abstract class AbstractWritableVector implements WritableColumnVector, Se
 
     protected int capacity;
 
-    private final int initialCapacity;
-
     /**
      * The Dictionary for this column. If it's not null, will be used to decode the value in get().
      */
@@ -55,7 +52,6 @@ public abstract class AbstractWritableVector implements WritableColumnVector, Se
 
     public AbstractWritableVector(int capacity) {
         this.capacity = capacity;
-        this.initialCapacity = capacity;
     }
 
     /** Update the dictionary. */
@@ -99,10 +95,8 @@ public abstract class AbstractWritableVector implements WritableColumnVector, Se
 
     @Override
     public void reset() {
-        // Keep normal expanded capacity for reuse, but release buffers inflated by one-off spikes.
-        if (shouldShrinkCapacity()) {
-            capacity = initialCapacity;
-        }
+        // To reduce copy, we don't reset the capacity to initial capacity here.
+        // The capacity will be retained for reuse.
         noNulls = true;
         isAllNull = false;
         elementsAppended = 0;
@@ -127,11 +121,6 @@ public abstract class AbstractWritableVector implements WritableColumnVector, Se
             }
             capacity = newCapacity;
         }
-    }
-
-    private boolean shouldShrinkCapacity() {
-        return capacity > DEFAULT_HUGE_VECTOR_THRESHOLD
-                && capacity > (long) elementsAppended * DEFAULT_HUGE_VECTOR_SHRINK_RATIO;
     }
 
     static int calculateNewCapacity(int requiredCapacity) {
